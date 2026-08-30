@@ -5,4 +5,5 @@ python-dotenv>=1.0,<2
 openai>=2.0,<3
 pydantic>=2.7,<3
 pypdf>=6.0,<7
+supabase>=2.0,<3
 pytest>=8.0,<9

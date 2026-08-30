@@ -13,6 +13,13 @@ from data.financial_data import (
     get_historical_prices,
 )
 from data.pdf_evidence import PDFEvidenceError, extract_pdf_evidence
+from data.supabase_repository import (
+    SupabasePersistenceError,
+    create_supabase_client,
+    get_authenticated_user_id,
+    save_thesis_review,
+    update_thesis_review,
+)
 from logic.portfolio import (
     PortfolioValidationError,
     calculate_average_correlation,
@@ -92,7 +99,102 @@ def get_openai_api_key() -> str | None:
         return None
 
 
+def get_app_secret(name: str) -> str | None:
+    """Read a setting from local environment variables or Streamlit secrets."""
+    environment_value = os.getenv(name)
+    if environment_value:
+        return environment_value
+    try:
+        return st.secrets.get(name)
+    except FileNotFoundError:
+        return None
+
+
+def get_session_supabase_client():
+    """Keep a Supabase Auth session isolated to this Streamlit browser session."""
+    if "supabase_client" not in st.session_state:
+        st.session_state["supabase_client"] = create_supabase_client(
+            get_app_secret("SUPABASE_URL"), get_app_secret("SUPABASE_KEY")
+        )
+    return st.session_state["supabase_client"]
+
+
+def get_evidence_metadata(evidence: dict[str, object] | None) -> dict[str, object] | None:
+    """Keep only file metadata; never persist extracted PDF text."""
+    if not evidence:
+        return None
+    return {
+        "filename": evidence["filename"],
+        "page_count": evidence["page_count"],
+    }
+
+
+def show_auth_page() -> None:
+    """Show the minimal login/sign-up flow until a Supabase Auth session exists."""
+    st.title("Portfolio Thesis Checker")
+    st.caption("분석을 시작하려면 로그인해주세요.")
+
+    auth_view = st.session_state.get("auth_view", "login")
+    if auth_view == "signup":
+        st.subheader("회원가입")
+        with st.form("sign_up_form"):
+            signup_email = st.text_input("아이디(이메일)")
+            signup_password = st.text_input("비밀번호", type="password")
+            signup_password_confirm = st.text_input("비밀번호 확인", type="password")
+            sign_up_submitted = st.form_submit_button("회원가입")
+
+        if sign_up_submitted:
+            if not all([signup_email.strip(), signup_password, signup_password_confirm]):
+                st.error("아이디와 비밀번호를 모두 입력해주세요.")
+            elif signup_password != signup_password_confirm:
+                st.error("비밀번호가 일치하지 않습니다.")
+            elif len(signup_password) < 6:
+                st.error("비밀번호는 6자 이상 입력해주세요.")
+            else:
+                try:
+                    supabase_client.auth.sign_up(
+                        {"email": signup_email.strip(), "password": signup_password}
+                    )
+                except Exception as exc:
+                    st.error(f"회원가입에 실패했습니다: {exc}")
+                else:
+                    # Keep sign-up and sign-in as separate steps in this MVP.
+                    supabase_client.auth.sign_out()
+                    st.session_state["auth_view"] = "login"
+                    st.rerun()
+
+        if st.button("로그인으로 돌아가기"):
+            st.session_state["auth_view"] = "login"
+            st.rerun()
+        return
+
+    st.subheader("로그인")
+    with st.form("sign_in_form"):
+        login_email = st.text_input("아이디(이메일)")
+        login_password = st.text_input("비밀번호", type="password")
+        sign_in_submitted = st.form_submit_button("로그인")
+
+    if sign_in_submitted:
+        if not login_email.strip() or not login_password:
+            st.error("아이디와 비밀번호를 모두 입력해주세요.")
+        else:
+            try:
+                supabase_client.auth.sign_in_with_password(
+                    {"email": login_email.strip(), "password": login_password}
+                )
+            except Exception:
+                st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
+            else:
+                st.rerun()
+
+    st.caption("계정이 없나요?")
+    if st.button("회원가입"):
+        st.session_state["auth_view"] = "signup"
+        st.rerun()
+
+
 openai_api_key = get_openai_api_key()
+supabase_client = get_session_supabase_client()
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -108,8 +210,24 @@ def get_cached_historical_prices(tickers: tuple[str, ...]) -> pd.DataFrame:
 
 
 st.set_page_config(page_title="Portfolio Thesis Checker")
+
+if supabase_client is None:
+    st.error("Supabase 연결 설정을 확인해주세요. .env에 URL과 Publishable key가 필요합니다.")
+    st.stop()
+
+authenticated_user_id = get_authenticated_user_id(supabase_client)
+if not authenticated_user_id:
+    show_auth_page()
+    st.stop()
+
 st.title("Portfolio Thesis Checker")
 st.caption("포트폴리오를 추천하지 않고, 입력한 구성과 투자 논리를 점검합니다.")
+account_col, sign_out_col = st.columns([6, 1])
+account_col.caption("로그인됨")
+if sign_out_col.button("로그아웃"):
+    supabase_client.auth.sign_out()
+    st.session_state["auth_view"] = "login"
+    st.rerun()
 
 with st.form("thesis_form"):
     st.subheader("포트폴리오 입력")
@@ -197,6 +315,7 @@ with st.form("thesis_form"):
 
 pdf_evidence = None
 pdf_error = None
+submitted_review_id = None
 if submitted and evidence_pdf is not None:
     try:
         pdf_evidence = extract_pdf_evidence(
@@ -226,6 +345,31 @@ if submitted:
         except PortfolioValidationError as exc:
             st.error(str(exc))
         else:
+            submitted_review_id = st.session_state.get("active_review_id")
+            if not submitted_review_id:
+                try:
+                    submitted_review_id = save_thesis_review(
+                        supabase_client,
+                        user_id=authenticated_user_id,
+                        original_thesis=thesis.strip(),
+                        holdings=holdings,
+                        questionnaire={
+                            "thesis_factors": thesis_factors,
+                            "decision_trigger": decision_trigger,
+                            "evidence_level": evidence_level,
+                            "investment_horizon": investment_horizon,
+                            "loss_response": loss_response,
+                        },
+                        cross_examination_answers=[],
+                        ai_analysis=None,
+                        ai_error=None,
+                        evidence_metadata=get_evidence_metadata(pdf_evidence),
+                    )
+                except SupabasePersistenceError as exc:
+                    st.warning(str(exc))
+                else:
+                    st.session_state["active_review_id"] = submitted_review_id
+
             financial_rows = []
             sectors = {}
             data_error = None
@@ -439,6 +583,7 @@ if submitted:
                             "analysis_context": ai_context,
                             "use_ai_analysis": use_ai_analysis,
                             "has_pdf": pdf_evidence is not None,
+                            "review_id": submitted_review_id,
                         }
                         st.session_state.pop("final_cross_examination", None)
                         for index in range(3):
@@ -510,6 +655,27 @@ if cross_examination:
                     final_result["ai_error"] = str(exc)
             st.session_state["final_cross_examination"] = final_result
 
+            review_id = cross_examination.get("review_id")
+            if review_id:
+                try:
+                    update_thesis_review(
+                        supabase_client,
+                        review_id=str(review_id),
+                        cross_examination_answers=answer_records,
+                        ai_analysis=(
+                            final_result["ai_analysis"].model_dump(mode="json")
+                            if final_result.get("ai_analysis")
+                            else None
+                        ),
+                        ai_error=(
+                            str(final_result["ai_error"])
+                            if final_result.get("ai_error")
+                            else None
+                        ),
+                    )
+                except SupabasePersistenceError as exc:
+                    st.warning(str(exc))
+
     final_cross_examination = st.session_state.get("final_cross_examination")
     if final_cross_examination:
         st.header("최종 진단")
@@ -561,6 +727,7 @@ if cross_examination:
     if st.button("새 분석 시작"):
         st.session_state.pop("cross_examination", None)
         st.session_state.pop("final_cross_examination", None)
+        st.session_state.pop("active_review_id", None)
         for index in range(3):
             st.session_state.pop(f"cross_examination_answer_{index}", None)
         st.rerun()
