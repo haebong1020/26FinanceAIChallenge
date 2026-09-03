@@ -1,5 +1,10 @@
 # Portfolio Thesis Checker
 
+> 작업 기록 (2026-09-03): 디자인 저장소 `dudwldd/26FinanceAIChallenge_design`의
+> Streamlit 화면을 적용하고, 기존 Supabase 이메일/비밀번호 인증 및 분석 결과
+> 저장을 연결했다. 아래의 **디자인·DB 적용 현황**과 **실행·로그인 점검**을 다음
+> 작업 시작점으로 사용한다.
+
 A minimal Streamlit proof of concept that retrieves financial data to help users
 evaluate the reasoning behind a US-listed stock portfolio. It does not optimize
 portfolio weights, make buy/sell decisions, or recommend securities. An optional
@@ -102,6 +107,18 @@ SUPABASE_KEY=your_supabase_publishable_key_here
 3. Put them in `SUPABASE_URL` and `SUPABASE_KEY` in `.env`, or configure the
    same values as Streamlit secrets when deploying.
 
+기존 `thesis_reviews` 테이블을 이미 생성했다면, 디자인 질문 흐름의 추가 입력값을
+저장하기 위해 다음 SQL도 한 번 실행해야 한다.
+
+```sql
+alter table public.thesis_reviews
+  add column if not exists factor_detail text not null default '',
+  add column if not exists evidence_url text,
+  add column if not exists workflow_version text not null default 'design-v1';
+```
+
+전체 SQL은 [supabase/migrations/20260903_add_design_question_fields.sql](supabase/migrations/20260903_add_design_question_fields.sql)에 있다. 이 마이그레이션은 기존 분석 기록을 삭제하거나 수정하지 않고 컬럼만 추가한다.
+
 The included Row Level Security policies require a signed-in user and allow that
 user to insert and read only their own reviews. Do not add an anonymous-insert
 policy as a temporary shortcut. Do not use a `service_role` key in Streamlit or
@@ -153,6 +170,43 @@ Registration uses `supabase_client.auth.sign_up(...)` with the same email and
 password fields. Sign-out uses `supabase_client.auth.sign_out()`. A future
 history page can query `thesis_reviews`; the existing `select` RLS policy will
 automatically limit it to the signed-in user's records.
+
+### 디자인·DB 적용 현황
+
+- `ui/styles.py`, `ui/workflow.py`, `ui/login.py`: 디자인 저장소의 로그인,
+  단계 내비게이션, 로딩, 결과 화면 스타일을 적용했다.
+- 로그인·회원가입·로그아웃은 시연용 상태값이 아니라 Supabase Auth를 사용한다.
+- 디자인의 투자 기준 화면은 다음 입력을 받는다: 핵심 근거, 선택 근거 상세 설명,
+  구성 계기, 자료 확인 수준, PDF, 참고 URL, 투자 기간, 30% 하락 시 대응.
+- `factor_detail`, `evidence_url`, `workflow_version`은 전용 DB 컬럼에 저장한다.
+  나머지 질문 답변은 기존 `questionnaire` JSONB 컬럼에 저장한다.
+- PDF의 원문은 저장하지 않고, 파일명과 페이지 수만 `evidence_metadata`에 저장한다.
+- 추가 점검 질문은 디자인 흐름에 맞춰 3단계로 표시되며, 최종 답변과 선택적 AI
+  분석 결과는 같은 `thesis_reviews` 레코드에 업데이트된다.
+
+### 실행·로그인 점검
+
+```bash
+cd "/Users/osemin/Library/Mobile Documents/com~apple~CloudDocs/SNU/사이드 프로젝트/26FinanceAIChallenge/investment-checker"
+source .venv/bin/activate
+python -m pytest -q
+streamlit run app.py
+```
+
+브라우저 주소는 `http://localhost:8501`이다. 실행 전에 `.env`의
+`SUPABASE_URL`, `SUPABASE_KEY`가 실제 프로젝트의 URL과 publishable key인지
+확인한다.
+
+로그인 화면은 현재 Supabase의 모든 로그인 실패를 동일한 문구로 표시한다. 로그인에
+실패하면 먼저 다음을 확인한다.
+
+1. 로그인하려는 이메일이 회원가입 화면을 통해 실제로 등록되었는지
+2. Supabase Dashboard → Authentication → Users에 해당 사용자가 있는지
+3. Supabase에서 **Confirm email**을 켰다면 수신한 인증 메일을 완료했는지. 간단한
+   로컬 테스트만 할 경우 Authentication의 Email 설정에서 이를 끌 수 있다.
+4. `.env`를 수정했다면 Streamlit 서버를 종료 후 다시 실행했는지
+
+이번 작업에서는 로컬 서버를 `streamlit run app.py --server.headless true --server.port 8501`로 시작했다. 이후 터미널 오류가 의심되어 추가 진단은 중단했다.
 
 ## Run the app
 

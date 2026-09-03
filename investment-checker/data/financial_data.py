@@ -86,6 +86,22 @@ def get_financial_data(
     }
 
 
+def ticker_exists(ticker: str) -> bool:
+    """Return whether Yahoo Finance exposes recent prices for a ticker."""
+    normalized_ticker = _normalize_ticker(ticker)
+    try:
+        history = yf.download(
+            tickers=[normalized_ticker],
+            period="5d",
+            auto_adjust=True,
+            progress=False,
+            timeout=8,
+        )
+    except Exception:
+        return False
+    return isinstance(history, pd.DataFrame) and not history.empty
+
+
 def get_historical_prices(
     tickers: list[str],
     period: str = "1y",
