@@ -12,6 +12,9 @@ create table if not exists public.thesis_reviews (
   ai_analysis jsonb,
   ai_error text,
   evidence_metadata jsonb,
+  factor_detail text not null default '',
+  evidence_url text,
+  workflow_version text not null default 'design-v1',
   completed_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );

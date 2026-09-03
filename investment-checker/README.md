@@ -10,6 +10,7 @@
 - 기존 금융 데이터·PDF 추출·팀 기준·선택적 AI 분석
 - 디자인 출처: dudwldd/26FinanceAIChallenge_design, f08b665f
 - DB 출처: haebong1020/26FinanceAIChallenge, 5aca6453
+- DB 상세 입력 컬럼 migration: PR #4, 19e2d4b
 
 로그인 → 포트폴리오 입력 → 객관식 투자 기준/PDF → 데이터 점검 →
 최대 3개 추가 질문(한 화면에 하나) → 최종 결과 및 저장 순서입니다.
@@ -45,6 +46,7 @@ FMP_API_KEY는 향후 사용을 위한 예약값입니다.
 ## Supabase
 
 - 팀의 기존 프로젝트라면 테이블·정책 적용 여부를 먼저 확인하세요.
+- 기존 프로젝트에는 supabase/migrations/20260903_add_design_question_fields.sql을 한 번 적용하세요.
 - 새 프로젝트에서는 supabase/schema.sql을 확인한 뒤 SQL Editor에서 적용합니다.
 - 공개용 publishable/anon 키만 사용합니다. service_role 키는 사용하지 않습니다.
 - Auth 이메일 인증이 켜져 있으면 가입 후 인증 이메일을 확인해야 합니다.

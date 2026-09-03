@@ -48,6 +48,9 @@ def save_result(client: Client, user_id: str) -> None:
                     {"filename": evidence["filename"], "page_count": evidence["page_count"]}
                     if evidence else None
                 ),
+                factor_detail=str(context["questionnaire"].get("factor_detail", "")).strip(),
+                evidence_url=str(context["questionnaire"].get("evidence_url", "")).strip(),
+                workflow_version="design-v1",
                 **common,
             )
     except SupabasePersistenceError as exc:
