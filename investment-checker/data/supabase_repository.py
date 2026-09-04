@@ -39,6 +39,9 @@ def save_thesis_review(
     ai_analysis: dict[str, Any] | None,
     ai_error: str | None,
     evidence_metadata: dict[str, Any] | None,
+    factor_detail: str,
+    evidence_url: str,
+    workflow_version: str,
 ) -> str:
     """Store one completed review and return its generated database id.
 
@@ -54,6 +57,9 @@ def save_thesis_review(
         "ai_analysis": ai_analysis,
         "ai_error": ai_error,
         "evidence_metadata": evidence_metadata,
+        "factor_detail": factor_detail,
+        "evidence_url": evidence_url or None,
+        "workflow_version": workflow_version,
         "completed_at": datetime.now(UTC).isoformat(),
     }
     try:

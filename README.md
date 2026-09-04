@@ -1,5 +1,8 @@
 # Investment Thesis Checker
 
+팀 통합 브랜치에서는 영지님의 디자인과 세민님의 Supabase 인증·저장을 연결했습니다.
+최신 실행·설정·테스트 안내는 [통합본 README](investment-checker/README.md)를 참고하세요.
+
 미국 상장주식 포트폴리오에 대한 사용자의 투자 논리를 금융 데이터와 비교해 점검하는
 Streamlit 기반 금융 AI Challenge MVP입니다.
 
@@ -45,11 +48,11 @@ Streamlit 기반 금융 AI Challenge MVP입니다.
 - 점수 산정
 - 매수·매도 및 종목 추천
 - 포트폴리오 최적화와 목표 비중 추천
-- 사용자 입력과 분석 결과의 영구 저장
+- 사용자별 과거 분석 기록 조회 화면
 - 스캔 PDF OCR과 암호화 PDF 분석
 
-현재 MVP는 사용자가 입력한 내용을 처리한 뒤 화면에만 보여주며 데이터베이스에
-저장하지 않습니다.
+통합본은 최종 결과를 Supabase의 로그인 사용자 계정에 저장합니다.
+PDF 본문은 저장하지 않고 파일명·페이지 수만 기록합니다.
 
 동일 비중과 역변동성 비중은 사용자의 선택을 검토하기 위한 비교 기준일 뿐,
 서비스가 제안하는 목표 비중이나 투자 추천이 아닙니다.
@@ -95,8 +98,8 @@ http://localhost:8501
 
 ## 환경변수
 
-기본 포트폴리오 분석은 API 키 없이 실행할 수 있습니다. AI 논리 검증을
-활성화하려면 예시 파일을 복사한 뒤 OpenAI API 키를 설정합니다.
+Supabase 로그인 설정은 필수입니다. AI 논리 검증을 활성화하려면
+추가로 OpenAI API 키를 설정합니다.
 
 ```bash
 cp .env.example .env
@@ -104,6 +107,8 @@ cp .env.example .env
 
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_KEY=your_publishable_key_here
 OPENAI_MODEL=gpt-5.4-mini
 FMP_API_KEY=your_fmp_api_key_here
 ```
@@ -114,7 +119,7 @@ FMP_API_KEY=your_fmp_api_key_here
 Streamlit Community Cloud에서는 앱 설정의 **Secrets**에 동일한 키를
 추가합니다. AI 체크박스를 켠 경우에만 입력한 논리와 화면에 표시된
 포트폴리오 데이터 요약이 OpenAI API로 전송됩니다. 이 앱은 그 결과를
-데이터베이스에 저장하지 않습니다.
+로그인한 사용자 계정에 저장합니다. PDF 추출 본문은 DB에 저장하지 않습니다.
 
 ## 테스트
 

@@ -1,178 +1,96 @@
-# Portfolio Thesis Checker
+# Portfolio Thesis Checker — 팀 통합본
 
-A minimal Streamlit proof of concept that retrieves financial data to help users
-evaluate the reasoning behind a US-listed stock portfolio. It does not optimize
-portfolio weights, make buy/sell decisions, or recommend securities. An optional
-AI layer classifies the thesis, separates supported and uncertain points, flags
-possible biases, and produces devil's-advocate questions.
+미국 주식 포트폴리오의 투자 논리를 데이터와 추가 질문으로 점검하는 Streamlit MVP입니다.
+추천·목표 비중·수익률 예측·검증되지 않은 점수를 제공하지 않습니다.
 
-## Project structure
+## 통합 범위
 
-```text
-investment-checker/
-├── app.py
-├── data/financial_data.py
-├── ai/portfolio_analyzer.py
-├── logic/fact_check.py
-├── tests/test_financial_data.py
-├── requirements.txt
-├── .env.example
-└── .gitignore
-```
+- 메인 코드의 Supabase 로그인·회원가입·로그아웃 및 사용자별 저장
+- 디자인 레포의 입력 화면, 색상·타이포그래피, 단계 표시, 질문별 화면, 8개 항목 보고서
+- 기존 금융 데이터·PDF 추출·팀 기준·선택적 AI 분석
+- 디자인 출처: dudwldd/26FinanceAIChallenge_design, f08b665f
+- DB 출처: haebong1020/26FinanceAIChallenge, 5aca6453
+- DB 상세 입력 컬럼 migration: PR #4, 19e2d4b
 
-The financial-data layer currently retrieves normalized data from yfinance. The
-optional AI analysis uses OpenAI Structured Outputs so its result has a stable
-shape for the Streamlit UI.
+로그인 → 포트폴리오 입력 → 객관식 투자 기준/PDF → 데이터 점검 →
+최대 3개 추가 질문(한 화면에 하나) → 최종 결과 및 저장 순서입니다.
+질문은 건너뛸 수 있지만 미답변으로 표시하며, 제출 수를 논리의 품질로 평가하지 않습니다.
 
-Users can enter up to ten tickers and portfolio weights. The app validates that
-weights total 100%, rejects duplicate or malformed tickers, retrieves each
-holding's basic financial data, and displays the largest holding and combined
-weight of the top two holdings. It also aggregates weights by sector and shows a
-one-year daily-return correlation matrix. Correlation is presented as historical
-context, not as a forecast or investment recommendation.
+## 실행
 
-For thesis checking, the app compares the user's weights with equal weights and
-inverse-volatility weights. It shows historical return, annualized volatility,
-and maximum drawdown under each weighting method, then generates deterministic
-questions about material differences. These are comparison references, not
-recommended or target allocations.
-
-Users may optionally attach one text-based PDF up to 10MB. The app extracts
-page-aware text in memory, shows a short preview, and includes the bounded text
-in the optional AI analysis. The PDF is not stored in a database. Image-only
-scans and encrypted PDFs are not supported in this MVP.
-
-Each `Check my thesis` submission is stored against the signed-in user's ID and
-cannot be read by another user. If the user completes the cross-examination,
-the same record is updated with those answers and optional AI output. PDF text
-is never stored; only its filename and page count are retained when a PDF was
-attached.
-
-The app also applies three deterministic team review standards: diversification
-illusion (sector weight of at least 70% or average correlation of at least
-0.70), mismatch between long-term reasoning and a horizon below one year, and
-quantitative claims made with a low level of supporting research. Each triggered
-standard shows its measured basis, a neutral diagnosis, and a follow-up question.
-
-The review flow has two stages. The first stage identifies issues and selects up
-to three cross-examination questions. The user answers those questions in a
-second form before seeing the final review. Without an OpenAI API key, the app
-records the completed answers without claiming to understand their meaning. If
-optional AI analysis is enabled, the final step compares the original thesis and
-follow-up answers for support, unresolved assumptions, and rationale changes.
-
-## Installation
-
-Python 3.10 or newer is recommended.
+Python 3.11 이상을 사용하세요.
 
 ```bash
 cd investment-checker
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## Environment variables
-
-Copy the example file if you plan to add Financial Modeling Prep later:
-
-```bash
 cp .env.example .env
-```
-
-Set `OPENAI_API_KEY` to enable the optional AI checkbox. `OPENAI_MODEL` defaults
-to `gpt-5.4-mini`. `FMP_API_KEY` is reserved for a later FMP integration. No key
-is required for the existing deterministic portfolio analysis, and `.env` is
-excluded from Git.
-
-```text
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5.4-mini
-
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your_supabase_publishable_key_here
-```
-
-### Supabase setup
-
-1. Create a Supabase project, then open **SQL Editor** and run
-   `supabase/schema.sql` once.
-2. Open **Project Settings → API** and copy the Project URL and the
-   **publishable** key (called `anon` in legacy projects).
-3. Put them in `SUPABASE_URL` and `SUPABASE_KEY` in `.env`, or configure the
-   same values as Streamlit secrets when deploying.
-
-The included Row Level Security policies require a signed-in user and allow that
-user to insert and read only their own reviews. Do not add an anonymous-insert
-policy as a temporary shortcut. Do not use a `service_role` key in Streamlit or
-commit real keys to Git.
-
-### Login-ready Supabase integration status
-
-The database integration includes a minimal email/password login and sign-up
-screen using Supabase Auth.
-
-| Area | Prepared state |
-| --- | --- |
-| Supabase client | `app.py` creates one client per Streamlit browser session and retains it in `st.session_state["supabase_client"]`. |
-| Credentials | `SUPABASE_URL` and `SUPABASE_KEY` are loaded from `.env` first, then Streamlit secrets. |
-| Authentication | The app requires a Supabase Auth session before showing the thesis checker. Login and sign-up use an email as the account ID plus a password. |
-| Data ownership | `thesis_reviews.user_id` references `auth.users(id)`. |
-| Row Level Security | An authenticated user can insert and select only rows whose `user_id` equals `auth.uid()`. Anonymous access is denied. |
-| Saved data | A row is created immediately after `Check my thesis`. It contains the original thesis, holdings, questionnaire, and PDF metadata. Final cross-examination answers and optional AI analysis are added to the same row later. PDF contents are not saved. |
-
-#### Supabase Dashboard settings to configure now
-
-1. In **Authentication → Providers**, enable **Email** if email/password login
-   will be used. It is commonly enabled by default; confirm it before building
-   the screen.
-2. In **Authentication → Sign In / Providers → Email**, turn **Confirm email**
-   off. This app intentionally uses a simple ID/password flow without email
-   verification.
-3. Run `supabase/schema.sql` only after creating the project. It creates the
-   `thesis_reviews` table and enables the user-scoped RLS policies.
-
-#### Login implementation details
-
-The login and sign-up screens in `app.py` already use the existing session
-client. Do not create a separate global client or use a `service_role` key.
-After successful email/password sign-in, Supabase keeps the authenticated
-session on that client. `Check my thesis` saves the review with that user ID;
-the final submission updates the same review.
-
-The relevant login call is:
-
-```python
-supabase_client = get_session_supabase_client()
-result = supabase_client.auth.sign_in_with_password(
-    {"email": email, "password": password}
-)
-```
-
-Registration uses `supabase_client.auth.sign_up(...)` with the same email and
-password fields. Sign-out uses `supabase_client.auth.sign_out()`. A future
-history page can query `thesis_reviews`; the existing `select` RLS policy will
-automatically limit it to the signed-in user's records.
-
-## Run the app
-
-```bash
 streamlit run app.py
 ```
 
-Enter portfolio tickers and weights, describe the portfolio thesis, answer the
-five multiple-choice questions, optionally enable AI analysis, then select
-**Check my thesis**. The app shows
-simple concentration metrics and a table of available financial data. It does
-not score the answers, forecast returns, or calculate optimal weights at this
-POC stage. Missing provider values are displayed as `null`. When AI analysis is
-enabled, the thesis and the displayed portfolio-data summary are sent to the
-OpenAI API; they are not stored by this app.
+로컬 .env 또는 Streamlit Cloud Secrets에 다음 이름으로 설정합니다.
+실제 키를 코드·PR·README에 넣지 마세요.
 
-## Run tests
-
-```bash
-pytest
+```text
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_KEY=your_publishable_key
+OPENAI_API_KEY=optional_openai_key
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
-Tests use a fake ticker provider and do not require network access.
+Supabase 설정은 필수입니다. OpenAI 키는 선택이며 없으면 AI 체크박스가 비활성화됩니다.
+FMP_API_KEY는 향후 사용을 위한 예약값입니다.
+.env와 .streamlit/secrets.toml은 Git에서 제외됩니다.
+
+## Supabase
+
+- 팀의 기존 프로젝트라면 테이블·정책 적용 여부를 먼저 확인하세요.
+- 기존 프로젝트에는 supabase/migrations/20260903_add_design_question_fields.sql을 한 번 적용하세요.
+- 새 프로젝트에서는 supabase/schema.sql을 확인한 뒤 SQL Editor에서 적용합니다.
+- 공개용 publishable/anon 키만 사용합니다. service_role 키는 사용하지 않습니다.
+- Auth 이메일 인증이 켜져 있으면 가입 후 인증 이메일을 확인해야 합니다.
+- 코드에 포함된 RLS 정책은 사용자 자신의 행만 조회·생성·수정하도록 설계되어 있습니다.
+  실제 서버에서도 정책이 적용되어 있는지 별도 확인해야 합니다.
+- 사용자마다 클라이언트를 세션별로 유지하며 로그아웃하면 입력·분석 ID를 초기화합니다.
+- 새로고침으로 Streamlit 세션이 종료되면 다시 로그인할 수 있습니다.
+
+최종 결과 단계에서 최초 투자 논리·종목·비중·객관식 답변·추가 답변·AI 결과/오류를 저장합니다.
+답변 수정은 같은 행을 업데이트하고, 포트폴리오 수정은 새 분석으로 처리합니다.
+저장 실패를 표시하고 재시도 버튼을 제공합니다. 응답을 받지 못한 네트워크 오류 후 재시도는
+중복 저장 가능성이 있으므로 실제 배포 전 확인이 필요합니다.
+PDF는 파일명·페이지 수만 저장합니다. PDF 원문과 추출 텍스트는 DB에 저장하지 않습니다.
+참고 URL과 선택 근거 상세 설명은 사용자가 입력한 정보로 함께 기록합니다.
+
+## 분석 원칙
+
+- 산업 비중 70% 이상 또는 평균 상관계수 0.70 이상이라는 기존 팀 기준을 유지합니다.
+- 산업 미확인은 집중도로 단정하지 않고, 상관계수 미확인은 숫자로 대체하지 않습니다.
+- 단일 종목 및 과거 가격 조회 실패도 추가 질문으로 진행할 수 있습니다.
+- 금융 데이터 조회만으로 자유서술 주장이 입증되었다고 표시하지 않습니다.
+- AI가 없거나 실패하면 규칙 점검과 답변 기록만 제공하며 편향·논리 일관성 등급을 생성하지 않습니다.
+- PDF: 텍스트 기반 1개, 10MB 이하, 최대 30페이지/30,000자. 스캔·암호화 PDF 미지원.
+- 참고 URL은 주소만 기록하며 웹 본문은 수집하지 않습니다.
+- OpenAI 분석 선택 시 투자 논리·금융 데이터·설문·PDF 추출 텍스트·추가 답변이 API로 전송됩니다.
+- 비교 비중과 과거 성과는 참고용이며 투자 추천이 아닙니다.
+
+## 주요 파일
+
+- app.py: 입력 화면과 인증 진입점
+- ui/login.py: 디자인이 적용된 실제 Supabase 인증
+- ui/review_flow.py: 질문·결과 화면, 저장 흐름
+- ui/styles.py, ui/workflow.py: 디자인과 단계 표시
+- logic/review.py: 데이터 수집 조합, 누락값 처리, 질문 선택, 보고서 항목
+- data/supabase_repository.py: 팀의 DB 저장 모듈
+- supabase/schema.sql: 사용자별 접근 정책
+- tests/: 금융 데이터·규칙·화면·세션·저장 호출 테스트
+
+## 검증
+
+```bash
+python -m pytest -q
+```
+
+자동 테스트는 가짜 외부 서비스를 사용합니다. 실제 Supabase 계정 로그인·RLS 격리·저장,
+실제 AI 호출, 배포 Secrets, 모바일/브라우저 디자인은 별도 실환경 확인이 필요합니다.
+기존 localhost:8503은 별도 임시 디자인 코드일 수 있습니다. 위 경로의 app.py를 실행해야 통합본입니다.
