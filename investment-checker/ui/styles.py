@@ -1356,4 +1356,3 @@ def apply_global_styles() -> None:
         """,
         unsafe_allow_html=True,
     )
-

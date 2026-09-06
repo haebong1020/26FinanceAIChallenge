@@ -47,6 +47,7 @@ FMP_API_KEY는 향후 사용을 위한 예약값입니다.
 
 - 팀의 기존 프로젝트라면 테이블·정책 적용 여부를 먼저 확인하세요.
 - 기존 프로젝트에는 supabase/migrations/20260903_add_design_question_fields.sql을 한 번 적용하세요.
+- 사용자별 최신 분석 1건만 유지하려면 supabase/migrations/20260906_one_review_per_user.sql도 한 번 적용하세요. 이 migration은 사용자별 기존 기록 중 가장 최근 기록만 남기므로, 필요하면 실행 전에 이력을 백업하세요.
 - 새 프로젝트에서는 supabase/schema.sql을 확인한 뒤 SQL Editor에서 적용합니다.
 - 공개용 publishable/anon 키만 사용합니다. service_role 키는 사용하지 않습니다.
 - Auth 이메일 인증이 켜져 있으면 가입 후 인증 이메일을 확인해야 합니다.
