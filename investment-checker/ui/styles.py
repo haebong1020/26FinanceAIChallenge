@@ -297,18 +297,6 @@ def apply_global_styles() -> None:
             font-size: 0.78rem;
         }
 
-        .workflow-logout {
-            margin-left: 1.4rem;
-            color: var(--court-muted);
-            font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
-            font-size: 0.8rem;
-            text-decoration: none;
-        }
-
-        .workflow-logout:hover {
-            color: var(--court-coral);
-        }
-
         .workflow-step {
             display: inline-flex;
             align-items: center;
@@ -712,11 +700,9 @@ def apply_global_styles() -> None:
         }
 
         .loading-card {
-            align-self: center;
-            width: min(430px, calc(100vw - 3rem));
-            margin: 2rem auto 0;
+            width: min(520px, calc(100vw - 3rem));
+            margin-top: 2rem;
             padding: 1.2rem 1.45rem;
-            box-sizing: border-box;
             border: 1px solid #dde2ed;
             border-radius: 18px;
             background: #ffffff;
@@ -912,7 +898,7 @@ def apply_global_styles() -> None:
         .followup-hero h1 {
             display: block;
             width: 100%;
-            margin: 1.25rem 0 -0.4rem !important;
+            margin: 1.25rem 0 0.15rem !important;
             color: #111827;
             font-family: "Noto Serif KR", "Batang", serif !important;
             font-size: 2rem !important;
@@ -996,7 +982,7 @@ def apply_global_styles() -> None:
         div[data-testid="stVerticalBlock"]:has(
             > div[data-testid="stElementContainer"] .portfolio-card-title
         ) {
-            margin-bottom: 0.45rem;
+            margin-bottom: 1.4rem;
             padding: 3rem 3.2rem 3.1rem !important;
             border: 1px solid #dbe3ee !important;
             border-radius: 22px !important;
@@ -1116,7 +1102,7 @@ def apply_global_styles() -> None:
 
         .final-report > h1 {
             margin: 0.65rem 0 0.8rem !important;
-            font-size: 22px !important;
+            font-size: 34px !important;
             line-height: 1.15;
         }
 

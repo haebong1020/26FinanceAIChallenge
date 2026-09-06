@@ -1,1 +1,1 @@
-"""Reusable Streamlit UI helpers."""
+"""Streamlit presentation helpers."""

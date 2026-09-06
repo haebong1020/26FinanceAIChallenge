@@ -1,14 +1,48 @@
 """Login gate used by the Streamlit prototype."""
 
+import os
+from supabase import Client
+from data.supabase_repository import create_supabase_client, get_authenticated_user_id
+
 import streamlit as st
 
-from data.supabase_repository import get_authenticated_user_id
+
+def get_secret(name: str) -> str | None:
+    """Read configuration without exposing keys."""
+    try:
+        return os.getenv(name) or st.secrets.get(name)
+    except FileNotFoundError:
+        return os.getenv(name)
 
 
-def render_login(supabase_client) -> bool:
-    """Render the designed login view backed by the current Supabase session."""
-    if get_authenticated_user_id(supabase_client):
-        return True
+def session_client() -> Client | None:
+    """Create one auth client per browser session."""
+    if st.session_state.get("supabase_client") is None:
+        st.session_state["supabase_client"] = create_supabase_client(
+            get_secret("SUPABASE_URL"), get_secret("SUPABASE_KEY")
+        )
+    return st.session_state["supabase_client"]
+
+
+def clear_session() -> None:
+    """Discard all private form inputs and review IDs."""
+    for key in list(st.session_state):
+        del st.session_state[key]
+
+
+def render_login(client: Client) -> str | None:
+    """Render the team's login design backed by Supabase Auth."""
+    user_id = get_authenticated_user_id(client)
+    if user_id:
+        return user_id
+    # Expired authentication must not leave another account's review in memory.
+    private_keys = {
+        "review_context", "final_result", "review_id", "draft_answers",
+        "followup_index", "save_error", "evidence_pdf", "workflow_screen",
+    }
+    for key in list(st.session_state):
+        if key in private_keys or key.startswith(("portfolio_", "criteria_")):
+            del st.session_state[key]
 
     st.markdown('<div class="login-shell">', unsafe_allow_html=True)
     intro_column, form_column = st.columns([1.08, 0.92], gap="large")
@@ -35,17 +69,12 @@ def render_login(supabase_client) -> bool:
 
     with form_column:
         st.markdown('<div class="login-form-heading">', unsafe_allow_html=True)
-        auth_view = st.session_state.get("auth_view", "login")
-        is_signup = auth_view == "signup"
-        st.subheader("회원가입" if is_signup else "로그인")
-        st.caption(
-            "계정을 만들어 분석 결과를 안전하게 저장하세요."
-            if is_signup
-            else "계정에 로그인하여 계속하세요."
-        )
+        signup = st.session_state.get("signup", False)
+        st.subheader("회원가입" if signup else "로그인")
+        st.caption("계정에 로그인하여 계속하세요.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-        with st.form("sign_up_form" if is_signup else "sign_in_form"):
+        with st.form("supabase_login_form"):
             email = st.text_input(
                 "이메일",
                 placeholder="name@example.com",
@@ -55,62 +84,42 @@ def render_login(supabase_client) -> bool:
                 "비밀번호",
                 type="password",
                 placeholder="••••••••",
-                autocomplete="new-password" if is_signup else "current-password",
+                autocomplete="current-password",
             )
-            password_confirm = ""
-            if is_signup:
-                password_confirm = st.text_input(
-                    "비밀번호 확인",
-                    type="password",
-                    placeholder="••••••••",
-                    autocomplete="new-password",
+            option_column, link_column = st.columns([1.25, 0.75])
+            with option_column:
+                st.caption("현재 브라우저 세션에서 로그인됩니다.")
+            with link_column:
+                st.markdown(
+                    '<div class="login-help">Supabase 계정 인증</div>',
+                    unsafe_allow_html=True,
                 )
-            submitted = st.form_submit_button(
-                "회원가입" if is_signup else "로그인", use_container_width=True
-            )
+
+            submitted = st.form_submit_button("회원가입" if signup else "로그인", use_container_width=True)
 
         if submitted:
             if not email.strip() or not password:
-                st.error("이메일과 비밀번호를 모두 입력해주세요.")
-            elif is_signup and password != password_confirm:
-                st.error("비밀번호가 일치하지 않습니다.")
-            elif is_signup and len(password) < 6:
-                st.error("비밀번호는 6자 이상 입력해주세요.")
-            elif is_signup:
-                try:
-                    supabase_client.auth.sign_up(
-                        {"email": email.strip(), "password": password}
-                    )
-                except Exception as exc:
-                    st.error(f"회원가입에 실패했습니다: {exc}")
-                else:
-                    st.success("회원가입이 완료되었습니다. 로그인해주세요.")
-                    st.session_state["auth_view"] = "login"
-            elif not password:
-                st.error("비밀번호를 입력해주세요.")
+                st.error("이메일과 비밀번호를 입력해주세요.")
+            elif signup and len(password) < 6:
+                st.error("비밀번호는 6자 이상이어야 합니다.")
             else:
                 try:
-                    supabase_client.auth.sign_in_with_password(
-                        {"email": email.strip(), "password": password}
-                    )
+                    if signup:
+                        client.auth.sign_up({"email": email.strip(), "password": password})
+                        client.auth.sign_out()
+                    else:
+                        client.auth.sign_in_with_password(
+                            {"email": email.strip(), "password": password}
+                        )
                 except Exception:
-                    st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
+                    st.error("인증하지 못했습니다. 입력 정보·네트워크·이메일 인증 상태를 확인해주세요.")
                 else:
-                    st.rerun()
-
-        st.markdown(
-            '<p class="login-signup">'
-            + ("이미 계정이 있으신가요?" if is_signup else "아직 계정이 없으신가요?")
-            + "</p>",
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "로그인으로 돌아가기" if is_signup else "회원가입",
-            use_container_width=True,
-            key="auth_view_switch",
-        ):
-            st.session_state["auth_view"] = "login" if is_signup else "signup"
+                    if signup:
+                        st.success("가입 요청을 처리했습니다. 필요한 경우 인증 이메일을 확인한 뒤 로그인해주세요.")
+                    else:
+                        st.rerun()
+        if st.button("로그인으로 돌아가기" if signup else "회원가입하기"):
+            st.session_state["signup"] = not signup
             st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    return False
+    st.caption("분석 결과는 로그인한 사용자 계정에 저장합니다. PDF 본문은 DB에 저장하지 않습니다.")
+    return None
