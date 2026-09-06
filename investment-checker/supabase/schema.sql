@@ -4,7 +4,7 @@
 
 create table if not exists public.thesis_reviews (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
   original_thesis text not null,
   holdings jsonb not null,
   questionnaire jsonb not null,

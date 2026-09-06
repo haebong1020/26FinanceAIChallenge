@@ -43,7 +43,7 @@ def save_thesis_review(
     evidence_url: str,
     workflow_version: str,
 ) -> str:
-    """Store one completed review and return its generated database id.
+    """Create or replace the signed-in user's current review and return its id.
 
     The uploaded PDF content is intentionally excluded. Only non-sensitive file
     metadata (name and page count) may be passed in ``evidence_metadata``.
@@ -63,9 +63,13 @@ def save_thesis_review(
         "completed_at": datetime.now(UTC).isoformat(),
     }
     try:
-        response = client.table("thesis_reviews").insert(row).execute()
+        response = (
+            client.table("thesis_reviews")
+            .upsert(row, on_conflict="user_id")
+            .execute()
+        )
     except Exception as exc:  # Supabase client exceptions vary by transport version.
-        raise SupabasePersistenceError("Supabase에 분석 결과를 저장하지 못했습니다.") from exc
+        raise SupabasePersistenceError("Supabase에 분석 결과를 저장하거나 갱신하지 못했습니다.") from exc
 
     if not response.data or not response.data[0].get("id"):
         raise SupabasePersistenceError("Supabase가 저장된 분석의 ID를 반환하지 않았습니다.")

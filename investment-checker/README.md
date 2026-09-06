@@ -119,6 +119,8 @@ alter table public.thesis_reviews
 
 전체 SQL은 [supabase/migrations/20260903_add_design_question_fields.sql](supabase/migrations/20260903_add_design_question_fields.sql)에 있다. 이 마이그레이션은 기존 분석 기록을 삭제하거나 수정하지 않고 컬럼만 추가한다.
 
+사용자별로 최신 분석 1건만 유지하려면 [supabase/migrations/20260906_one_review_per_user.sql](supabase/migrations/20260906_one_review_per_user.sql)을 한 번 실행한다. 이 마이그레이션은 사용자별 기존 기록 중 가장 최근 기록만 남기므로, 실행 전 기존 분석 이력을 보관해야 한다면 별도로 백업해야 한다.
+
 The included Row Level Security policies require a signed-in user and allow that
 user to insert and read only their own reviews. Do not add an anonymous-insert
 policy as a temporary shortcut. Do not use a `service_role` key in Streamlit or
@@ -181,6 +183,8 @@ automatically limit it to the signed-in user's records.
 - `factor_detail`, `evidence_url`, `workflow_version`은 전용 DB 컬럼에 저장한다.
   나머지 질문 답변은 기존 `questionnaire` JSONB 컬럼에 저장한다.
 - PDF의 원문은 저장하지 않고, 파일명과 페이지 수만 `evidence_metadata`에 저장한다.
+- 새 포트폴리오 분석을 시작하면 같은 사용자의 기존 `thesis_reviews` 레코드를
+  덮어쓴다. 따라서 사용자별 최신 분석 결과 1건만 저장된다.
 - 추가 점검 질문은 디자인 흐름에 맞춰 3단계로 표시되며, 최종 답변과 선택적 AI
   분석 결과는 같은 `thesis_reviews` 레코드에 업데이트된다.
 
